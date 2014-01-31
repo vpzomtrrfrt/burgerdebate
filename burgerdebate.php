@@ -352,6 +352,7 @@ function bd_shortcode_handler($atts) {
 		<div id="bd-area">
 			<a onclick="mod_button(this)" style="cursor: pointer">Mod Login</a><br />
 			<button class="bdbutton" id="bdformexpand" onclick="this.style.display='none';document.getElementById('bd-form-area').style.display='inline';">Post (only for debaters)</button>
+			<a href="javascript:reloadBDPosts()" style="text-decoration: none; font-size: 20pt">&#8635</a>
 			<div id="bd-form-area" style="display: none">
 				<input type="password" id="bd_login" placeholder="Password" style="width: 100%" /><br />
 				<p id="maybetext" style="display: none"></p>
