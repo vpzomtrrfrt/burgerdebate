@@ -136,7 +136,7 @@ function bd_shortcode_handler($atts) {
 		<script type="text/javascript">
 			var bdplugindebugdata = {};
 			var ajaxurl="$ajaxurl";
-			function loadBDPosts() {
+			function loadBDPosts(ele,callback) {
 				jQuery.getJSON(
 					ajaxurl,
 					{
@@ -194,29 +194,27 @@ function bd_shortcode_handler($atts) {
 							};
 							modbox.appendChild(editbtn);
 							post.appendChild(modbox);
-							document.getElementById('bd-post-area').appendChild(post);
+							ele.appendChild(post);
 						}
 						if(doMessage) {
-							document.getElementById('bd-post-area').innerHTML="No posts yet!";
+							ele.innerHTML="No posts yet!";
 						}
 						document.getElementById('loading').style.display='none';
 						document.getElementById('bd-post-area').style.display='inline';
+						callback(ele);
 					}
 				);
 			}
-			loadBDPosts();
 			function reloadBDPosts() {
 				document.getElementById('post').value="";
 				document.getElementById('bd-form-area').style.display='none';
 				document.getElementById('bdformexpand').style.display='inline';
-				var bdpa = document.getElementById('bd-post-area');
-				bdpa.style.display='none';
-				document.getElementById('loading').style.display='block';
+				loadBDPosts(document.createElement('div'), function(d) {var bdpa = document.getElementById('bd-post-area');
 				while(bdpa.firstChild) {
 					bdpa.removeChild(bdpa.firstChild);
-				}
-				loadBDPosts();
+				}bdpa.appendChild(d);});
 			}
+			window.onload=function(){reloadBDPosts();};
 			function loadBDPoll() {
 				jQuery.getJSON(
 					ajaxurl,
