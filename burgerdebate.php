@@ -37,6 +37,7 @@ register_activation_hook(__FILE__,'bd_install');
 function bd_admin_init() {
 	register_setting('bd-group','user1pass');
 	register_setting('bd-group','user2pass');
+	register_setting('bd-group','user3pass');
 }
 add_action('admin_init','bd_admin_init');
 function bd_plugin_settings_page() {
