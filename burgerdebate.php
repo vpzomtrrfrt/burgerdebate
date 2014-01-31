@@ -156,6 +156,7 @@ function bd_shortcode_handler($atts) {
 							var savebtn=document.createElement('button');
 							savebtn.className='bdbutton bdsavebtn';
 							savebtn.style.display='none';
+							savebtn.innerHTML='Update';
 							post.className='user'+d[p].user_id+'post bdpost';
 							txt.innerHTML=d[p].text;
 							post.appendChild(txt);
@@ -428,7 +429,7 @@ function bd_add_post() {
 	else {
 		global $wpdb;
 		$table1_name=$wpdb->prefix."bd_posts";
-		if($wpdb->insert($table1_name,array("user_id"=>$user,"text"=>$_POST['text']))) {
+		if($wpdb->insert($table1_name,array("user_id"=>$user,"text"=>stripslashes($_POST['text'])))) {
 			echo 'success';
 		}
 		else {
@@ -453,7 +454,7 @@ add_action('wp_ajax_nopriv_BDModLogin','bd_mod_login');
 function bd_mod_edit_post() {
 	if($_POST['key']==get_option('user3pass')) {
 		global $wpdb;
-		if($wpdb->update($wpdb->prefix."bd_posts",array('text'=>$_POST['text']),array('id'=>$_POST['bdpostid']))) {
+		if($wpdb->update($wpdb->prefix."bd_posts",array('text'=>stripslashes($_POST['text'])),array('id'=>$_POST['bdpostid']))) {
 			die('success');
 		}
 		die('Failed to modify post');
