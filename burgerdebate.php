@@ -49,6 +49,8 @@ function bd_plugin_settings_page() {
 		<h2>Burger Debate</h2>
 		<script type="text/javascript">
 			var wordbank="burger debate web site seventeen money class awesome numbers extra chat whiteboard journalism online student classic school mission prepare meaning life leader canvas method mentor".split(' ');
+			console.log(wordbank);
+			console.log(wordbank.length);
 			function generatePass(obj) {
 				obj.value=wordbank[Math.floor(Math.random()*wordbank.length)]+wordbank[Math.floor(Math.random()*wordbank.length)]+Math.floor(Math.random()*1000);
 			}
@@ -89,6 +91,7 @@ function bd_shortcode_handler($atts) {
 	return <<<HTML
 		<style type="text/css">
 			.bdpost {border-radius: 10px; border: 1px solid #999; padding: 5px; width: 70%; position: relative}
+			.bdpost p {display: inline}
 			.bdbutton {
    border: 1px solid #000000;
    background: #2f447d;
@@ -127,6 +130,8 @@ function bd_shortcode_handler($atts) {
 			.user1post {background: radial-gradient(#f00, #b00); background: -webkit-radial-gradient(#f00, #b00); margin-right: 15%}
 			.user2post {background: radial-gradient(#00f, #00b); background: -webkit-radial-gradient(#00f, #00b); margin-left: 15%}
 			.user3post {background: radial-gradient(#0f0, #0b0); background: -webkit-radial-gradient(#0f0, #0b0); margin-right: 7%; margin-left: 7%}
+			.modbox {display: none; height: 0px}
+			.bd_mod_loggedin div .modbox {display: block; height: auto; font-size: 8pt; color: #0a0}
 		</style>
 		<script type="text/javascript">
 			var bdplugindebugdata = {};
@@ -139,11 +144,55 @@ function bd_shortcode_handler($atts) {
 					},
 					function(d) {
 						var doMessage = true;
+						console.log(d);
 						for(var p in d) {
 							doMessage=false;
 							var post = document.createElement('div');
+							var txt = document.createElement('p');
+							txt.className='bdposttxt';
+							var txtbox = document.createElement('textarea');
+							txtbox.className='bdtxtbox';
+							txtbox.style.display='none';
+							var savebtn=document.createElement('button');
+							savebtn.className='bdbutton bdsavebtn';
+							savebtn.style.display='none';
 							post.className='user'+d[p].user_id+'post bdpost';
-							post.innerHTML=d[p].text;
+							txt.innerHTML=d[p].text;
+							post.appendChild(txt);
+							post.appendChild(txtbox);
+							post.appendChild(savebtn);
+							var modbox = document.createElement('div');
+							modbox.className='modbox';
+							var editbtn = document.createElement('a');
+							editbtn.innerHTML='Edit';
+							savebtn.bdPostId=d[p].id;
+							savebtn.bdPostDiv=post;
+							console.log(editbtn.bdPostId);
+							editbtn.onclick=function() {
+								this.parentNode.style.display='none';
+								this.parentNode.parentNode.getElementsByClassName('bdtxtbox')[0].value=this.parentNode.parentNode.getElementsByClassName('bdposttxt')[0].innerHTML;
+								this.parentNode.parentNode.getElementsByClassName('bdtxtbox')[0].style.display='inline';
+								this.parentNode.parentNode.getElementsByClassName('bdposttxt')[0].style.display='none';
+								this.parentNode.parentNode.getElementsByClassName('bdsavebtn')[0].style.display='inline';
+								this.parentNode.parentNode.getElementsByClassName('bdsavebtn')[0].onclick=function() {
+									console.log(this.bdPostId);
+									jQuery.ajax({
+										url: ajaxurl,
+										data: {action: 'ModEditBDPost', bdpostid: this.bdPostId, key: mod_password, text: this.bdPostDiv.getElementsByClassName('bdtxtbox')[0].value},
+										type: "POST",
+										success: function(d) {
+											if(d=="success") {
+												reloadBDPosts();
+											}
+											else {
+												alert(d);
+											}
+										}
+									});
+								}
+							};
+							modbox.appendChild(editbtn);
+							post.appendChild(modbox);
 							document.getElementById('bd-post-area').appendChild(post);
 						}
 						if(doMessage) {
@@ -155,6 +204,18 @@ function bd_shortcode_handler($atts) {
 				);
 			}
 			loadBDPosts();
+			function reloadBDPosts() {
+				document.getElementById('post').value="";
+				document.getElementById('bd-form-area').style.display='none';
+				document.getElementById('bdformexpand').style.display='inline';
+				var bdpa = document.getElementById('bd-post-area');
+				bdpa.style.display='none';
+				document.getElementById('loading').style.display='block';
+				while(bdpa.firstChild) {
+					bdpa.removeChild(bdpa.firstChild);
+				}
+				loadBDPosts();
+			}
 			function loadBDPoll() {
 				jQuery.getJSON(
 					ajaxurl,
@@ -249,16 +310,7 @@ function bd_shortcode_handler($atts) {
 					},
 					success: function(d) {
 						if(d=="success") {
-							document.getElementById('post').value="";
-							document.getElementById('bd-form-area').style.display='none';
-							document.getElementById('bdformexpand').style.display='inline';
-							var bdpa = document.getElementById('bd-post-area');
-							bdpa.style.display='none';
-							document.getElementById('loading').style.display='block';
-							while(bdpa.firstChild) {
-								bdpa.removeChild(bdpa.firstChild);
-							}
-							loadBDPosts();
+							reloadBDPosts();
 						}
 						else {
 							alert(d);
@@ -282,7 +334,7 @@ function bd_shortcode_handler($atts) {
 					success: function(d) {
 						if(d=="success") {
 							ele.style.display="none";
-							document.getElementById('bd-area').className="bd_mod_loggedin";
+							document.getElementById('bd-post-area').className="bd_mod_loggedin";
 							document.getElementById('bd_login').value=mod_password;
 							document.getElementById('bd_login').style.display="none";
 							document.getElementById('maybetext').style.display="inline";
@@ -317,7 +369,7 @@ add_shortcode('bd-content', 'bd_shortcode_handler');
 function bd_load_posts() {
 	global $wpdb;
 	$table1_name=$wpdb->prefix."bd_posts";
-	$rows = $wpdb->get_results("SELECT * FROM $table1_name ORDER BY time DESC;");
+	$rows = $wpdb->get_results("SELECT * FROM $table1_name ORDER BY id;");
 	echo json_encode($rows);
 	die();
 }
@@ -398,4 +450,16 @@ function bd_mod_login() {
 }
 add_action('wp_ajax_BDModLogin','bd_mod_login');
 add_action('wp_ajax_nopriv_BDModLogin','bd_mod_login');
+function bd_mod_edit_post() {
+	if($_POST['key']==get_option('user3pass')) {
+		global $wpdb;
+		if($wpdb->update($wpdb->prefix."bd_posts",array('text'=>$_POST['text']),array('id'=>$_POST['bdpostid']))) {
+			die('success');
+		}
+		die('Failed to modify post');
+	}
+	die('This website is more secure than that!');
+}
+add_action('wp_ajax_ModEditBDPost','bd_mod_edit_post');
+add_action('wp_ajax_nopriv_ModEditBDPost','bd_mod_edit_post');
 ?>
