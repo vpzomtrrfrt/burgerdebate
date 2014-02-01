@@ -11,6 +11,7 @@ function bd_install() {
 	global $wpdb;
 	$table1_name = $wpdb->prefix."bd_posts";
 	$table2_name = $wpdb->prefix."bd_votes";
+	$table3_name = $wpdb->prefix."bd_login";
 	$sql1 = "CREATE TABLE IF NOT EXISTS `$table1_name` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `time` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00' ON UPDATE CURRENT_TIMESTAMP,
@@ -25,21 +26,19 @@ function bd_install() {
 	debate_id int(16) not null,
 	UNIQUE (`cookie_id`)
 )";
+	$sql3 = "CREATE TABLE IF NOT EXISTS `$table3_name` (
+	user1pass text not null,
+	user2pass text not null,
+	user3pass text not null,
+	debate_id int(16) not null
+)";
 	require_once(ABSPATH.'wp-admin/includes/upgrade.php');
 	dbDelta($sql1);
 	dbDelta($sql2);
-	add_option('user1pass','leftleft');
-	add_option('user2pass','rightright');
-	add_option('user3pass','middleman');
+	dbDelta($sql3);
 	add_option('bd_cookie_id',1);
 }
 register_activation_hook(__FILE__,'bd_install');
-function bd_admin_init() {
-	register_setting('bd-group','user1pass');
-	register_setting('bd-group','user2pass');
-	register_setting('bd-group','user3pass');
-}
-add_action('admin_init','bd_admin_init');
 function bd_plugin_settings_page() {
 	if(!current_user_can('manage_options')) {
 		echo('You don\'t have sufficient permissions to access this page.');
@@ -48,28 +47,44 @@ function bd_plugin_settings_page() {
 	<div class="wrap">
 		<h2>Burger Debate</h2>
 		<script type="text/javascript">
+			var stuff = {};
 			var wordbank="burger debate web site seventeen money class awesome numbers extra chat whiteboard journalism online student classic school mission prepare meaning life leader canvas method mentor".split(' ');
-			console.log(wordbank);
-			console.log(wordbank.length);
 			function generatePass(obj) {
 				obj.value=wordbank[Math.floor(Math.random()*wordbank.length)]+wordbank[Math.floor(Math.random()*wordbank.length)]+Math.floor(Math.random()*1000);
 			}
+			function loadPasswords(did) {
+				jQuery.post('<?php echo admin_url('admin-ajax.php'); ?>',{action: 'LoadBDPasswords', debate_id: did},function(d){
+						d=JSON.parse(d);
+						stuff.d=d;
+						console.log(d);
+						console.log("^^");
+						document.getElementById('debate_id').value=d.debate_id;
+						document.getElementById('debate_id_text').innerHTML=d.debate_id;
+						document.getElementById('user1pass').value=d.user1pass;
+						document.getElementById('user2pass').value=d.user2pass;
+						document.getElementById('user3pass').value=d.user3pass;
+				}); 
+			}
+			function bdSettingsTravel(d) {
+				loadPasswords(d+parseInt(document.getElementById('debate_id').value,10));
+			}
+			jQuery.post('<?php echo admin_url('admin-ajax.php'); ?>',{action: 'GetRecentDebate'},function(d){loadPasswords(d);});
 		</script>
-		<form method="post" action="options.php">
-			<?php @settings_fields('bd-group') ?>
-			<?php @do_settings_fields('bd-group') ?>
+		<button onclick="bdSettingsTravel(-1)"><<</button>Debate <span id="debate_id_text"></span><button onclick="bdSettingsTravel(1)">>></button>
+		<form method="post" onsubmit="jQuery.post('<?php echo admin_url("admin-ajax.php"); ?>',{action:'SaveBDPasswords',user1pass:document.getElementById('user1pass').value,user2pass:document.getElementById('user2pass').value,user3pass:document.getElementById('user3pass').value,debate_id:document.getElementById('debate_id').value},function(d){console.log(d);});return false;">
 			<table class="form-table">
+				<input type="hidden" name="debate_id" id="debate_id" />
 				<tr valign="top">
 					<th scope="row"><label for="user1pass">User 1 Password</label></th>
-					<td><input type="text" name="user1pass" id="user1pass" value="<?php echo get_option('user1pass'); ?>" /><button onclick="generatePass(user1pass)">Generate</button></td>
+					<td><input type="text" name="user1pass" id="user1pass" /><button onclick="generatePass(user1pass)">Generate</button></td>
 				</tr>
 				<tr valign="top">
 					<th scope="row"><label for="user2pass">User 2 Password</label></th>
-					<td><input type="text" name="user2pass" id="user2pass" value="<?php echo get_option('user2pass'); ?>" /><button onclick="generatePass(user2pass)">Generate</button></td>
+					<td><input type="text" name="user2pass" id="user2pass" /><button onclick="generatePass(user2pass)">Generate</button></td>
 				</tr>
 				<tr valign="top">
 					<th scope="row"><label for="user3pass">Moderator Password</label></th>
-					<td><input type="text" name="user3pass" id="user3pass" value="<?php echo get_option('user3pass'); ?>" /><button onclick="generatePass(user3pass)">Generate</button></td>
+					<td><input type="text" name="user3pass" id="user3pass" /><button onclick="generatePass(user3pass)">Generate</button></td>
 				</tr>
 			</table>
 			<?php @submit_button(); ?>
@@ -378,6 +393,7 @@ $debate_id=0;
 if(isset($_REQUEST['debate_id'])) {
 	$debate_id=intval($_REQUEST['debate_id']);
 }
+$pwds = bd_get_passwords($debate_id);
 function bd_load_posts() {
 	global $wpdb;
 	global $debate_id;
@@ -427,14 +443,15 @@ function bd_poll_vote() {
 add_action('wp_ajax_BDPollVote','bd_poll_vote');
 add_action('wp_ajax_nopriv_BDPollVote','bd_poll_vote');
 function bd_add_post() {
+	global $pwds;
 	$user = 0;
-	if($_POST['key']==get_option('user1pass')) {
+	if($_POST['key']==$pwds['user1pass']) {
 		$user=1;
 	}
-	else if($_POST['key']==get_option('user2pass')) {
+	else if($_POST['key']==$pwds['user2pass']) {
 		$user=2;
 	}
-	else if($_POST['key']==get_option('user3pass')) {
+	else if($_POST['key']==$pwds['user3pass']) {
 		$user=3;
 	}
 	if($user==0) {
@@ -456,7 +473,8 @@ function bd_add_post() {
 add_action('wp_ajax_nopriv_addBDPost','bd_add_post');
 add_action('wp_ajax_addBDPost','bd_add_post');
 function bd_mod_login() {
-	if($_POST['key']==get_option('user3pass')) {
+	global $pwds;
+	if($_POST['key']==$pwds['user3pass']) {
 		echo 'success';
 	}
 	else {
@@ -467,7 +485,8 @@ function bd_mod_login() {
 add_action('wp_ajax_BDModLogin','bd_mod_login');
 add_action('wp_ajax_nopriv_BDModLogin','bd_mod_login');
 function bd_mod_edit_post() {
-	if($_POST['key']==get_option('user3pass')) {
+	global $pwds;
+	if($_POST['key']==$pwds['user3pass']) {
 		global $wpdb;
 		global $debate_id;
 		if($wpdb->update($wpdb->prefix."bd_posts",array('text'=>stripslashes($_POST['text'])),array('id'=>$_POST['bdpostid']))) {
@@ -479,4 +498,36 @@ function bd_mod_edit_post() {
 }
 add_action('wp_ajax_ModEditBDPost','bd_mod_edit_post');
 add_action('wp_ajax_nopriv_ModEditBDPost','bd_mod_edit_post');
+function bd_get_passwords($dbi) {
+	global $wpdb;
+	$rows = $wpdb->get_results("SELECT * FROM ".$wpdb->prefix."bd_login WHERE debate_id=".$dbi,ARRAY_A);
+	if(count($rows)<1) {
+		$tr = array('user1pass'=>'leftleft','user2pass'=>'rightright','user3pass'=>'middleman','debate_id'=>$dbi); 
+		$wpdb->insert($wpdb->prefix."bd_login",$tr);
+		return $tr;
+	}
+	return $rows[0];
+}
+function bd_load_passwords() {
+	$row = bd_get_passwords($_POST['debate_id']);
+	die(json_encode($row));
+}
+add_action('wp_ajax_LoadBDPasswords','bd_load_passwords');
+function bd_recent_debate() {
+	global $wpdb;
+	$rows = $wpdb->get_results("SELECT debate_id FROM ".$wpdb->prefix."bd_posts ORDER BY id DESC LIMIT 1;",ARRAY_A);
+	die($rows[0]['debate_id']);
+}
+add_action('wp_ajax_GetRecentDebate','bd_recent_debate');
+function bd_save_passwords() {
+	global $wpdb;
+	$select = array('user1pass','user2pass','user3pass');
+	$filtered = array();
+	foreach($select as $sel) {
+		$filtered[$sel]=$_POST[$sel];
+	}
+	$wpdb->update($wpdb->prefix."bd_login",$filtered,array('debate_id'=>$_POST['debate_id']));
+	die('success');
+}
+add_action('wp_ajax_SaveBDPasswords','bd_save_passwords');
 ?>
