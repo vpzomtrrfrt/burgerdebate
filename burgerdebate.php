@@ -88,6 +88,8 @@ function bd_plugin_settings_link($links) {
 add_filter("plugin_action_links_".plugin_basename(__FILE__), 'bd_plugin_settings_link');
 function bd_shortcode_handler($atts) {
 	$ajaxurl = addslashes(admin_url('admin-ajax.php'));
+	$pa = shortcode_atts(array('debate_id'=>0),$atts);
+	$scdi = intval($pa['debate_id']);
 	return <<<HTML
 		<style type="text/css">
 			.bdpost {border-radius: 10px; border: 1px solid #999; padding: 5px; width: 70%; position: relative}
@@ -136,11 +138,13 @@ function bd_shortcode_handler($atts) {
 		<script type="text/javascript">
 			var bdplugindebugdata = {};
 			var ajaxurl="$ajaxurl";
+			var debate_id="$scdi";
 			function loadBDPosts(ele,callback) {
 				jQuery.getJSON(
 					ajaxurl,
 					{
 						action: 'loadBDPosts',
+						debate_id: debate_id,
 					},
 					function(d) {
 						var doMessage = true;
@@ -179,7 +183,7 @@ function bd_shortcode_handler($atts) {
 									console.log(this.bdPostId);
 									jQuery.ajax({
 										url: ajaxurl,
-										data: {action: 'ModEditBDPost', bdpostid: this.bdPostId, key: mod_password, text: this.bdPostDiv.getElementsByClassName('bdtxtbox')[0].value},
+										data: {action: 'ModEditBDPost', bdpostid: this.bdPostId, key: mod_password, text: this.bdPostDiv.getElementsByClassName('bdtxtbox')[0].value, debate_id: debate_id},
 										type: "POST",
 										success: function(d) {
 											if(d=="success") {
@@ -219,7 +223,8 @@ function bd_shortcode_handler($atts) {
 				jQuery.getJSON(
 					ajaxurl,
 					{
-						action: 'loadBDPoll'
+						action: 'loadBDPoll',
+						debate_id: debate_id
 					},
 					function(d) {
 						console.log(d);
@@ -279,7 +284,8 @@ function bd_shortcode_handler($atts) {
 									url: ajaxurl,
 									data: {
 										action: 'BDPollVote',
-										vote: uservote
+										vote: uservote,
+										debate_id: debate_id
 									},
 									type: "POST",
 									success: function(d) {
@@ -305,7 +311,8 @@ function bd_shortcode_handler($atts) {
 					data: {
 						action: 'addBDPost',
 						key: document.getElementById('bd_login').value,
-						text: document.getElementById('post').value
+						text: document.getElementById('post').value,
+						debate_id: debate_id
 					},
 					success: function(d) {
 						if(d=="success") {
@@ -328,7 +335,8 @@ function bd_shortcode_handler($atts) {
 					url: ajaxurl,
 					data: {
 						action: 'BDModLogin',
-						key: mod_password
+						key: mod_password,
+						debate_id: debate_id
 					},
 					success: function(d) {
 						if(d=="success") {
@@ -366,10 +374,15 @@ function bd_shortcode_handler($atts) {
 HTML;
 }
 add_shortcode('bd-content', 'bd_shortcode_handler');
+$debate_id=0;
+if(isset($_REQUEST['debate_id'])) {
+	$debate_id=intval($_REQUEST['debate_id']);
+}
 function bd_load_posts() {
 	global $wpdb;
+	global $debate_id;
 	$table1_name=$wpdb->prefix."bd_posts";
-	$rows = $wpdb->get_results("SELECT * FROM $table1_name ORDER BY id;");
+	$rows = $wpdb->get_results("SELECT * FROM $table1_name WHERE debate_id=$debate_id ORDER BY id;");
 	echo json_encode($rows);
 	die();
 }
@@ -377,6 +390,7 @@ add_action('wp_ajax_loadBDPosts','bd_load_posts');
 add_action('wp_ajax_nopriv_loadBDPosts','bd_load_posts');
 function bd_load_poll() {
 	global $wpdb;
+	global $debate_id;
 	if(!isset($_COOKIE['bd_id'])) {
 		$cookie_id=get_option('bd_cookie_id');
 		update_option('bd_cookie_id',$cookie_id+1);
@@ -386,7 +400,7 @@ function bd_load_poll() {
 	}
 	setcookie('bd_id',$cookie_id,time()+60*60*24*365);
 	$table2_name=$wpdb->prefix."bd_votes";
-	$rows = $wpdb->get_results("SELECT * FROM $table2_name");
+	$rows = $wpdb->get_results("SELECT * FROM $table2_name WHERE debate_id=$debate_id");
 	$theirvote=0;
 	$votecount=array();
 	foreach($rows as $v) {
@@ -403,10 +417,11 @@ add_action('wp_ajax_loadBDPoll','bd_load_poll');
 add_action('wp_ajax_nopriv_loadBDPoll','bd_load_poll');
 function bd_poll_vote() {
 	global $wpdb;
+	global $debate_id;
 	$table2_name=$wpdb->prefix."bd_votes";
 	$cid = addslashes($_COOKIE['bd_id']);
-	$wpdb->query("DELETE FROM $table2_name WHERE cookie_id=\"$cid\"");
-	$wpdb->insert($table2_name,array("cookie_id"=>$cid,"vote"=>$_POST['vote']));
+	$wpdb->query("DELETE FROM $table2_name WHERE cookie_id=\"$cid\" AND debate_id=$debate_id");
+	$wpdb->insert($table2_name,array("cookie_id"=>$cid,"vote"=>$_POST['vote'],"debate_id"=>$debate_id));
 	die();
 }
 add_action('wp_ajax_BDPollVote','bd_poll_vote');
@@ -427,8 +442,9 @@ function bd_add_post() {
 	}
 	else {
 		global $wpdb;
+		global $debate_id;
 		$table1_name=$wpdb->prefix."bd_posts";
-		if($wpdb->insert($table1_name,array("user_id"=>$user,"text"=>stripslashes($_POST['text'])))) {
+		if($wpdb->insert($table1_name,array("user_id"=>$user,"text"=>stripslashes($_POST['text']),"debate_id"=>$debate_id))) {
 			echo 'success';
 		}
 		else {
@@ -453,6 +469,7 @@ add_action('wp_ajax_nopriv_BDModLogin','bd_mod_login');
 function bd_mod_edit_post() {
 	if($_POST['key']==get_option('user3pass')) {
 		global $wpdb;
+		global $debate_id;
 		if($wpdb->update($wpdb->prefix."bd_posts",array('text'=>stripslashes($_POST['text'])),array('id'=>$_POST['bdpostid']))) {
 			die('success');
 		}
