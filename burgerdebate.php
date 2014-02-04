@@ -7,7 +7,7 @@ function debug($message) {
 		error_log($message);
 	}
 }
-function bd_install() {
+function bd_install($reset_cookie_id=true) {
 	global $wpdb;
 	$table1_name = $wpdb->prefix."bd_posts";
 	$table2_name = $wpdb->prefix."bd_votes";
@@ -36,7 +36,7 @@ function bd_install() {
 	dbDelta($sql1);
 	dbDelta($sql2);
 	dbDelta($sql3);
-	add_option('bd_cookie_id',1);
+	if($reset_cookie_id){add_option('bd_cookie_id',1);}
 }
 register_activation_hook(__FILE__,'bd_install');
 function bd_plugin_settings_page() {
@@ -67,6 +67,9 @@ function bd_plugin_settings_page() {
 			}
 			function bdSettingsTravel(d) {
 				loadPasswords(d+parseInt(document.getElementById('debate_id').value,10));
+			}
+			function resetDatabase() {
+				jQuery.post('<?php echo admin_url('admin-ajax.php'); ?>',{action: 'ResetBDTables'}, function(d) {});
 			}
 			jQuery.post('<?php echo admin_url('admin-ajax.php'); ?>',{action: 'GetRecentDebate'},function(d){loadPasswords(d);});
 		</script>
@@ -516,7 +519,10 @@ add_action('wp_ajax_LoadBDPasswords','bd_load_passwords');
 function bd_recent_debate() {
 	global $wpdb;
 	$rows = $wpdb->get_results("SELECT debate_id FROM ".$wpdb->prefix."bd_posts ORDER BY id DESC LIMIT 1;",ARRAY_A);
-	die($rows[0]['debate_id']);
+	if(count($rows)>0) {
+		die($rows[0]['debate_id']);
+	}
+	else {die('0');}
 }
 add_action('wp_ajax_GetRecentDebate','bd_recent_debate');
 function bd_save_passwords() {
@@ -530,4 +536,11 @@ function bd_save_passwords() {
 	die('success');
 }
 add_action('wp_ajax_SaveBDPasswords','bd_save_passwords');
+function bd_reset_tables() {
+	global $wpdb;
+	$wpdb->query('DROP TABLE IF EXISTS '.$wpdb->prefix.'bd_posts;');
+	bd_install(false);
+	die();
+}
+add_action('wp_ajax_ResetBDTables','bd_reset_tables');
 ?>
